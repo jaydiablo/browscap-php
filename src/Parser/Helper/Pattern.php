@@ -67,7 +67,8 @@ class Pattern
      */
     public static function getHashForPattern($pattern, $variants = false)
     {
-        $regex   = '/^([^\.\*\?\s\r\n\\\\]+).*$/';
+        $patternLength = strlen($pattern);
+        $regex = '/^([^\*\?\r\n]+).*$/';
         $pattern = substr($pattern, 0, 32);
         $matches = [];
 
@@ -80,8 +81,15 @@ class Pattern
         if (true === $variants) {
             $patternStarts = [];
 
+            if (strlen($string) == $patternLength) {
+                $patternStarts[] = md5($string);
+            }
+
             for ($i = strlen($string); $i >= 1; --$i) {
                 $string          = substr($string, 0, $i);
+                if (strlen($string) <= $patternLength) {
+                    $string .= '*';
+                }
                 $patternStarts[] = md5($string);
             }
 
@@ -90,6 +98,10 @@ class Pattern
             $patternStarts[] = md5('');
 
             return $patternStarts;
+        }
+
+        if (strlen($string) < $patternLength) {
+            $string .= '*';
         }
 
         return md5($string);

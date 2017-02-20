@@ -104,7 +104,7 @@ class Ini implements ParserInterface
 
             while ($pattern !== false) {
                 $pattern       = str_replace('[\d]', '(\d)', $pattern);
-                $quotedPattern = '/^' . $pattern . '$/i';
+                $quotedPattern  = '/^' . str_replace('.*', '.*?', $pattern) . '$/i';
                 $matches       = [];
 
                 if (preg_match($quotedPattern, $userAgent, $matches)) {

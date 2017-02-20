@@ -161,11 +161,12 @@ class IniParser
 
         $quoterHelper = new Quoter();
         $matches      = $matches[0];
-        usort($matches, [$this, 'compareBcStrings']);
 
         // build an array to structure the data. this requires some memory, but we need this step to be able to
         // sort the data in the way we need it (see below).
         $data = [];
+
+        $i = 0;
 
         foreach ($matches as $pattern) {
             if ('GJK_Browscap_Version' === $pattern) {
@@ -174,10 +175,11 @@ class IniParser
 
             $pattern     = strtolower($pattern);
             $patternhash = Pattern::getHashForPattern($pattern, false);
-            $tmpLength   = Pattern::getPatternLength($pattern);
+            $minLength   = Pattern::getPatternLength($pattern);
+            $length      = strlen($pattern);
 
             // special handling of default entry
-            if ($tmpLength === 0) {
+            if ($minLength === 0) {
                 $patternhash = str_repeat('z', 32);
             }
 
@@ -185,8 +187,12 @@ class IniParser
                 $data[$patternhash] = [];
             }
 
-            if (!isset($data[$patternhash][$tmpLength])) {
-                $data[$patternhash][$tmpLength] = [];
+            if (!isset($data[$patternhash][$length])) {
+                $data[$patternhash][$length] = [];
+            }
+
+            if (!isset($data[$patternhash][$length][$minLength])) {
+                $data[$patternhash][$length][$minLength] = [];
             }
 
             $pattern = $quoterHelper->pregQuote($pattern);
@@ -197,12 +203,14 @@ class IniParser
             if (strpbrk($pattern, '0123456789') !== false) {
                 $compressedPattern = preg_replace('/\d/', '[\d]', $pattern);
 
-                if (!in_array($compressedPattern, $data[$patternhash][$tmpLength])) {
-                    $data[$patternhash][$tmpLength][] = $compressedPattern;
+                if (!in_array($compressedPattern, $data[$patternhash][$length][$minLength])) {
+                    $data[$patternhash][$length][$minLength][$i] = $compressedPattern;
                 }
             } else {
-                $data[$patternhash][$tmpLength][] = $pattern;
+                $data[$patternhash][$length][$minLength][$i] = $pattern;
             }
+
+            $i++;
         }
 
         unset($matches);
@@ -235,15 +243,25 @@ class IniParser
                 $contents[$subkey] = [];
             }
 
-            foreach ($tmpEntries as $tmpLength => $tmpPatterns) {
-                if (empty($tmpPatterns)) {
+            foreach ($tmpEntries as $length => $tmpLengths) {
+                if (empty($tmpLengths)) {
                     continue;
                 }
 
-                $chunks = array_chunk($tmpPatterns, self::COUNT_PATTERN);
+                foreach ($tmpLengths as $minLength => $tmpPatterns) {
+                    if (empty($tmpPatterns)) {
+                        continue;
+                    }
 
-                foreach ($chunks as $chunk) {
-                    $contents[$subkey][] = $patternhash . "\t" . $tmpLength . "\t" . implode("\t", $chunk);
+                    array_walk($tmpPatterns, function (&$pattern, $position) {
+                        $pattern = $pattern . '||' . $position;
+                    });
+
+                    $chunks = array_chunk($tmpPatterns, self::COUNT_PATTERN);
+
+                    foreach ($chunks as $chunk) {
+                        $contents[$subkey][] = $patternhash . "\t" . $length . "\t" . $minLength . "\t" . implode("\t", $chunk);
+                    }
                 }
             }
         }
@@ -264,38 +282,5 @@ class IniParser
 
             yield [$subkey => []];
         }
-    }
-
-    /**
-     * @param string $a
-     * @param string $b
-     *
-     * @return int
-     */
-    private function compareBcStrings($a, $b)
-    {
-        $a_len = strlen($a);
-        $b_len = strlen($b);
-
-        if ($a_len > $b_len) {
-            return -1;
-        }
-
-        if ($a_len < $b_len) {
-            return 1;
-        }
-
-        $a_len = strlen(str_replace(['*', '?'], '', $a));
-        $b_len = strlen(str_replace(['*', '?'], '', $b));
-
-        if ($a_len > $b_len) {
-            return -1;
-        }
-
-        if ($a_len < $b_len) {
-            return 1;
-        }
-
-        return 0;
     }
 }

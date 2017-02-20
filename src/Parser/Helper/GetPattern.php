@@ -30,6 +30,7 @@
 namespace BrowscapPHP\Parser\Helper;
 
 use BrowscapPHP\Cache\BrowscapCacheInterface;
+use BrowscapPHP\IniParser\IniParser;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -90,6 +91,10 @@ class GetPattern implements GetPatternInterface
         // add special key to fall back to the default browser
         $starts[] = str_repeat('z', 32);
 
+        $patterns = [];
+
+        $j = 0;
+
         // get patterns, first for the given browser and if that is not found,
         // for the default browser (with a special key)
         foreach ($starts as $tmpStart) {
@@ -116,20 +121,31 @@ class GetPattern implements GetPatternInterface
                 continue;
             }
 
-            $found = false;
+            foreach ($file as $line) {
+                list($hash, $len, $minLen, $pattern) = explode("\t", $line, 4);
 
-            foreach ($file as $buffer) {
-                list($tmpBuffer, $len, $patterns) = explode("\t", $buffer, 3);
+                if ($hash === $tmpStart && $minLen <= $length) {
+                    $group = explode("\t", $pattern);
 
-                if ($tmpBuffer === $tmpStart) {
-                    if ($len <= $length) {
-                        yield trim($patterns);
+                    foreach ($group as $each) {
+                        $pos = substr(strstr($each, '||'), 2);
+                        $each = strstr($each, '||', true);
+
+                        $patterns[$len][$pos] = $each;
                     }
-
-                    $found = true;
-                } elseif ($found === true) {
-                    break;
                 }
+            }
+        }
+
+        krsort($patterns);
+
+        foreach (array_keys($patterns) as $key) {
+            ksort($patterns[$key]);
+        }
+
+        foreach ($patterns as $length => $group) {
+            foreach (array_chunk($group, IniParser::COUNT_PATTERN) as $chunk) {
+                yield implode("\t", $chunk);
             }
         }
 
