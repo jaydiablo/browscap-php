@@ -103,8 +103,16 @@ class Ini implements ParserInterface
             $pattern = strtok($patterns, "\t");
 
             while ($pattern !== false) {
+                // Short circuit on identical strings
+                if ($userAgent === $pattern) {
+                    $settings = $this->dataHelper->getSettings($pattern);
+                    $formatter = $this->formatter;
+                    $formatter->setData($settings);
+                    break 2;
+                }
+
                 $pattern       = str_replace('[\d]', '(\d)', $pattern);
-                $quotedPattern  = '/^' . str_replace('.*', '.*?', $pattern) . '$/i';
+                $quotedPattern = '/^' . str_replace('.*', '.*?', $pattern) . '$/i';
                 $matches       = [];
 
                 if (preg_match($quotedPattern, $userAgent, $matches)) {

@@ -165,7 +165,6 @@ class IniParser
         // build an array to structure the data. this requires some memory, but we need this step to be able to
         // sort the data in the way we need it (see below).
         $data = [];
-
         $i = 0;
 
         foreach ($matches as $pattern) {
@@ -176,7 +175,7 @@ class IniParser
             $pattern     = strtolower($pattern);
             $patternhash = Pattern::getHashForPattern($pattern, false);
             $minLength   = Pattern::getPatternLength($pattern);
-            $length      = strlen($pattern);
+            $sortLength  = strlen(str_replace(['*', '?'], '', $pattern));
 
             // special handling of default entry
             if ($minLength === 0) {
@@ -187,12 +186,12 @@ class IniParser
                 $data[$patternhash] = [];
             }
 
-            if (!isset($data[$patternhash][$length])) {
-                $data[$patternhash][$length] = [];
+            if (!isset($data[$patternhash][$sortLength])) {
+                $data[$patternhash][$sortLength] = [];
             }
 
-            if (!isset($data[$patternhash][$length][$minLength])) {
-                $data[$patternhash][$length][$minLength] = [];
+            if (!isset($data[$patternhash][$sortLength][$minLength])) {
+                $data[$patternhash][$sortLength][$minLength] = [];
             }
 
             $pattern = $quoterHelper->pregQuote($pattern);
@@ -203,11 +202,11 @@ class IniParser
             if (strpbrk($pattern, '0123456789') !== false) {
                 $compressedPattern = preg_replace('/\d/', '[\d]', $pattern);
 
-                if (!in_array($compressedPattern, $data[$patternhash][$length][$minLength])) {
-                    $data[$patternhash][$length][$minLength][$i] = $compressedPattern;
+                if (!in_array($compressedPattern, $data[$patternhash][$sortLength][$minLength])) {
+                    $data[$patternhash][$sortLength][$minLength][$i] = $compressedPattern;
                 }
             } else {
-                $data[$patternhash][$length][$minLength][$i] = $pattern;
+                $data[$patternhash][$sortLength][$minLength][$i] = $pattern;
             }
 
             $i++;
@@ -243,7 +242,7 @@ class IniParser
                 $contents[$subkey] = [];
             }
 
-            foreach ($tmpEntries as $length => $tmpLengths) {
+            foreach ($tmpEntries as $sortLength => $tmpLengths) {
                 if (empty($tmpLengths)) {
                     continue;
                 }
@@ -254,13 +253,13 @@ class IniParser
                     }
 
                     array_walk($tmpPatterns, function (&$pattern, $position) {
-                        $pattern = $pattern . '||' . $position;
+                        $pattern = $position . '||' . $pattern;
                     });
 
                     $chunks = array_chunk($tmpPatterns, self::COUNT_PATTERN);
 
                     foreach ($chunks as $chunk) {
-                        $contents[$subkey][] = $patternhash . "\t" . $length . "\t" . $minLength . "\t" . implode("\t", $chunk);
+                        $contents[$subkey][] = $patternhash . "\t" . $sortLength . "\t" . $minLength . "\t" . implode("\t", $chunk);
                     }
                 }
             }

@@ -50,7 +50,7 @@ class SubKey
      */
     public static function getPatternCacheSubkey($string)
     {
-        return $string[0] . $string[1];
+        return $string[0] . $string[1] . $string[2];
     }
 
     /**

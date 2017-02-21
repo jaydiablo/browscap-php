@@ -90,22 +90,30 @@ class GetPattern implements GetPatternInterface
 
         // add special key to fall back to the default browser
         $starts[] = str_repeat('z', 32);
+        $starts = array_flip($starts);
 
+        $subKeys = [];
         $patterns = [];
 
         $j = 0;
 
         // get patterns, first for the given browser and if that is not found,
         // for the default browser (with a special key)
-        foreach ($starts as $tmpStart) {
+        foreach (array_keys($starts) as $tmpStart) {
             $tmpSubkey = SubKey::getPatternCacheSubkey($tmpStart);
+
+            // It's possible that our start hashes contain duplicate subkeys, we'll capture all applicable
+            // hashes in the subkey's file below, so no need to re-process a subkey.
+            if (in_array($tmpSubkey, $subKeys)) {
+                continue;
+            }
 
             if (!$this->cache->hasItem('browscap.patterns.' . $tmpSubkey, true)) {
                 $this->logger->debug('cache key "browscap.patterns.' . $tmpSubkey . '" not found');
 
                 continue;
             }
-            $success   = null;
+            $success = null;
 
             $file = $this->cache->getItem('browscap.patterns.' . $tmpSubkey, true, $success);
 
@@ -122,30 +130,32 @@ class GetPattern implements GetPatternInterface
             }
 
             foreach ($file as $line) {
-                list($hash, $len, $minLen, $pattern) = explode("\t", $line, 4);
+                list($hash, $sortLen, $minLen, $pattern) = explode("\t", $line, 4);
 
-                if ($hash === $tmpStart && $minLen <= $length) {
-                    $group = explode("\t", $pattern);
-
-                    foreach ($group as $each) {
-                        $pos = substr(strstr($each, '||'), 2);
-                        $each = strstr($each, '||', true);
-
-                        $patterns[$len][$pos] = $each;
+                if ($minLen <= $length && isset($starts[$hash])) {
+                    if (isset($patterns[$sortLen])) {
+                        $patterns[$sortLen] .= "\t" . $pattern;
+                    } else {
+                        $patterns[$sortLen] = $pattern;
                     }
                 }
             }
+
+            $subKeys[] = $tmpSubkey;
         }
 
         krsort($patterns);
 
-        foreach (array_keys($patterns) as $key) {
-            ksort($patterns[$key]);
-        }
+        foreach ($patterns as $group) {
+            // Have to make this back into an array so we can sort by the INI position that precedes each pattern
+            // and also so we can re-chunk since the groups may be too large for preg_match
+            $group = explode("\t", $group);
 
-        foreach ($patterns as $length => $group) {
+            sort($group, SORT_NATURAL);
+
             foreach (array_chunk($group, IniParser::COUNT_PATTERN) as $chunk) {
-                yield implode("\t", $chunk);
+                // Need to remove our INI position from the start of the patterns
+                yield trim(preg_replace('/(?:^|\t)[\d]+\|\|/', "\t", implode("\t", $chunk)));
             }
         }
 
