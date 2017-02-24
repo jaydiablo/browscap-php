@@ -206,7 +206,10 @@ class IniParser
                     $data[$patternhash][$sortLength][$minLength][$i] = $compressedPattern;
                 }
             } else {
-                $data[$patternhash][$sortLength][$minLength][$i] = $pattern;
+                // Make sure there are no duplicates without digits as well
+                if (!in_array($pattern, $data[$patternhash][$sortLength][$minLength])) {
+                    $data[$patternhash][$sortLength][$minLength][$i] = $pattern;
+                }
             }
 
             $i++;
