@@ -112,7 +112,7 @@ class IniParser
             // is also returned as a part
             $contents[$subkey][] = $patternhash . "\t" . json_encode(
                 $browserProperties,
-                JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+                JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES
             );
         }
 
@@ -135,6 +135,26 @@ class IniParser
         }
     }
 
+    public static function extractLongestWord($string)
+    {
+        preg_match_all('/[a-z]+/', $string, $matches);
+
+        // shortest to longest
+        usort($matches[0], function ($a, $b) {
+            $alen = strlen($a);
+            $blen = strlen($b);
+
+            return ($alen < $blen) ? -1 : 1;
+        });
+
+        // Dis-allowing some very commonly used words that wouldn't filter the patterns very much
+        do {
+            $word = array_pop($matches[0]);
+        } while ($word == 'mozilla' || $word == 'applewebkit' || $word == 'android' || $word == 'windows');
+
+        return $word === null ? '' : $word;
+    }
+
     /**
      * Creates new pattern cache files
      *
@@ -152,6 +172,8 @@ class IniParser
             $content,
             $matches
         );
+
+        $words = [];
 
         if (empty($matches[0]) || !is_array($matches[0])) {
             yield [];
@@ -176,6 +198,7 @@ class IniParser
             $patternhash = Pattern::getHashForPattern($pattern, false);
             $minLength   = Pattern::getPatternLength($pattern);
             $sortLength  = strlen(str_replace(['*', '?'], '', $pattern));
+            $word        = self::extractLongestWord($pattern);
 
             // special handling of default entry
             if ($minLength === 0) {
@@ -194,6 +217,10 @@ class IniParser
                 $data[$patternhash][$sortLength][$minLength] = [];
             }
 
+            if (!isset($data[$patternhash][$sortLength][$minLength][$word])) {
+                $data[$patternhash][$sortLength][$minLength][$word] = [];
+            }
+
             $pattern = $quoterHelper->pregQuote($pattern);
 
             // Check if the pattern contains digits - in this case we replace them with a digit regular expression,
@@ -202,13 +229,13 @@ class IniParser
             if (strpbrk($pattern, '0123456789') !== false) {
                 $compressedPattern = preg_replace('/\d/', '[\d]', $pattern);
 
-                if (!in_array($compressedPattern, $data[$patternhash][$sortLength][$minLength])) {
-                    $data[$patternhash][$sortLength][$minLength][$i] = $compressedPattern;
+                if (!in_array($compressedPattern, $data[$patternhash][$sortLength][$minLength][$word])) {
+                    $data[$patternhash][$sortLength][$minLength][$word][$i] = $compressedPattern;
                 }
             } else {
                 // Make sure there are no duplicates without digits as well
-                if (!in_array($pattern, $data[$patternhash][$sortLength][$minLength])) {
-                    $data[$patternhash][$sortLength][$minLength][$i] = $pattern;
+                if (!in_array($pattern, $data[$patternhash][$sortLength][$minLength][$word])) {
+                    $data[$patternhash][$sortLength][$minLength][$word][$i] = $pattern;
                 }
             }
 
@@ -250,19 +277,25 @@ class IniParser
                     continue;
                 }
 
-                foreach ($tmpLengths as $minLength => $tmpPatterns) {
-                    if (empty($tmpPatterns)) {
+                foreach ($tmpLengths as $minLength => $tmpWord) {
+                    if (empty($tmpWord)) {
                         continue;
                     }
 
-                    array_walk($tmpPatterns, function (&$pattern, $position) {
-                        $pattern = $position . '||' . $pattern;
-                    });
+                    foreach ($tmpWord as $word => $tmpPatterns) {
+                        if (empty($tmpPatterns)) {
+                            continue;
+                        }
 
-                    $chunks = array_chunk($tmpPatterns, self::COUNT_PATTERN);
+                        array_walk($tmpPatterns, function (&$pattern, $position) {
+                            $pattern = $position . '||' . $pattern;
+                        });
 
-                    foreach ($chunks as $chunk) {
-                        $contents[$subkey][] = $patternhash . "\t" . $sortLength . "\t" . $minLength . "\t" . implode("\t", $chunk);
+                        $chunks = array_chunk($tmpPatterns, self::COUNT_PATTERN);
+
+                        foreach ($chunks as $chunk) {
+                            $contents[$subkey][] = $patternhash . "\t" . $sortLength . "\t" . $minLength . "\t" . $word . "\t" . implode("\t", $chunk);
+                        }
                     }
                 }
             }

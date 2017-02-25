@@ -130,9 +130,18 @@ class GetPattern implements GetPatternInterface
             }
 
             foreach ($file as $line) {
-                list($hash, $sortLen, $minLen, $pattern) = explode("\t", $line, 4);
+                list($hash, $sortLen, $minLen, $word, $pattern) = explode("\t", $line, 5);
 
+                // Ignore patterns that don't match our hashes, or that are too long
                 if ($minLen <= $length && isset($starts[$hash])) {
+
+                    // Ignore patterns that contain a word that our useragent does not
+                    if (!empty($word)) {
+                        if (strpos($userAgent, $word) === false) {
+                            continue;
+                        }
+                    }
+
                     if (isset($patterns[$sortLen])) {
                         $patterns[$sortLen] .= "\t" . $pattern;
                     } else {
