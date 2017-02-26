@@ -68,6 +68,8 @@ class IniParser
      */
     const COUNT_PATTERN = 50;
 
+    const IGNORED_WORDS = ['applewebkit', 'mozilla', 'windows', 'android'];
+
     /**
      * Creates new ini part cache files
      *
@@ -135,7 +137,7 @@ class IniParser
         }
     }
 
-    public static function extractLongestWord($string)
+    private function extractLongestWord($string, array $ignored)
     {
         preg_match_all('/[a-z]+/', $string, $matches);
 
@@ -150,7 +152,12 @@ class IniParser
         // Dis-allowing some very commonly used words that wouldn't filter the patterns very much
         do {
             $word = array_pop($matches[0]);
-        } while ($word == 'mozilla' || $word == 'applewebkit' || $word == 'android' || $word == 'windows');
+        } while (in_array($word, $ignored));
+
+        if (empty($word) && count($ignored) > 0) {
+            array_pop($ignored);
+            $word = $this->extractLongestWord($string, $ignored);
+        }
 
         return $word === null ? '' : $word;
     }
@@ -183,6 +190,7 @@ class IniParser
 
         $quoterHelper = new Quoter();
         $matches      = $matches[0];
+        $words = [];
 
         // build an array to structure the data. this requires some memory, but we need this step to be able to
         // sort the data in the way we need it (see below).
@@ -198,7 +206,7 @@ class IniParser
             $patternhash = Pattern::getHashForPattern($pattern, false);
             $minLength   = Pattern::getPatternLength($pattern);
             $sortLength  = strlen(str_replace(['*', '?'], '', $pattern));
-            $word        = self::extractLongestWord($pattern);
+            $word        = $this->extractLongestWord($pattern, self::IGNORED_WORDS);
 
             // special handling of default entry
             if ($minLength === 0) {
