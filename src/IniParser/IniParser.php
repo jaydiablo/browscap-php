@@ -190,7 +190,6 @@ class IniParser
 
         $quoterHelper = new Quoter();
         $matches      = $matches[0];
-        $words = [];
 
         // build an array to structure the data. this requires some memory, but we need this step to be able to
         // sort the data in the way we need it (see below).
